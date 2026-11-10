@@ -1,0 +1,45 @@
+name: Dial
+options:
+  bundleIdPrefix: com.dial
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "16"
+  createIntermediateGroups: true
+
+packages:
+  KeyboardShortcuts:
+    url: https://github.com/sindresorhus/KeyboardShortcuts
+    from: "2.0.0"
+
+settings:
+  base:
+    PRODUCT_BUNDLE_IDENTIFIER: com.dial.app
+    MARKETING_VERSION: 1.0.0
+    CURRENT_PROJECT_VERSION: 1
+    SWIFT_VERSION: "5.9"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: ""
+    ENABLE_HARDENED_RUNTIME: YES
+
+targets:
+  Dial:
+    type: application
+    platform: macOS
+    sources:
+      - path: Dial
+        excludes:
+          - "**/*.md"
+    info:
+      path: Dial/Info.plist
+    entitlements:
+      path: Dial/Dial.entitlements
+    dependencies:
+      - package: KeyboardShortcuts
+        product: KeyboardShortcuts
+    settings:
+      base:
+        INFOPLIST_FILE: Dial/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Dial/Dial.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: NO
