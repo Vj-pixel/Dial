@@ -3,7 +3,7 @@ import KeyboardShortcuts
 import ServiceManagement
 
 extension KeyboardShortcuts.Name {
-    static let showWheel = Self("showWheel", default: .init(.space, modifiers: .option))
+    static let showWheel = Self("showWheel", default: .init(.space, modifiers: [.command, .option]))
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -17,7 +17,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBarController = MenuBarController(appDelegate: self)
 
         KeyboardShortcuts.onKeyDown(for: .showWheel) { [weak self] in
-            self?.wheelController.toggle()
+            self?.wheelController.show()
+        }
+        KeyboardShortcuts.onKeyUp(for: .showWheel) { [weak self] in
+            self?.wheelController.hideAndSelectHovered()
         }
     }
 

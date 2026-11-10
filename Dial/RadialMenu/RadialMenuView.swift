@@ -8,6 +8,7 @@ struct RadialMenuView: View {
     let store: AppItemStore
     let onSelect: (AppItem) -> Void
     let onDismiss: () -> Void
+    let onHoverChange: (AppItem?) -> Void
 
     @State private var hoveredIndex: Int? = nil
     @State private var appeared = false
@@ -38,6 +39,9 @@ struct RadialMenuView: View {
         }
         .onTapGesture {
             if let idx = hoveredIndex { onSelect(items[idx]) } else { onDismiss() }
+        }
+        .onChange(of: hoveredIndex) { _, newIndex in
+            onHoverChange(newIndex.map { items[$0] })
         }
         .onAppear {
             withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) { appeared = true }

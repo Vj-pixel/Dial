@@ -5,12 +5,12 @@ import ServiceManagement
 
 // MARK: - Window controller
 
-final class SettingsWindowController: NSWindowController {
+final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     static let shared = SettingsWindowController()
 
     private init() {
         let win = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 440),
+            contentRect: NSRect(x: 0, y: 0, width: 480, height: 480),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
@@ -18,14 +18,21 @@ final class SettingsWindowController: NSWindowController {
         win.title = "Dial Settings"
         win.center()
         super.init(window: win)
+        win.delegate = self
     }
     required init?(coder: NSCoder) { fatalError() }
 
     func showWindow(store: AppItemStore) {
         window?.contentView = NSHostingView(rootView: SettingsView(store: store))
-        showWindow(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        // This is called from a direct status-item button click, which macOS 15
+        // treats as a real user event — activate() works here.
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate()
         window?.makeKeyAndOrderFront(nil)
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        DispatchQueue.main.async { NSApp.setActivationPolicy(.accessory) }
     }
 }
 
@@ -64,9 +71,12 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
                     Button("Add App…") { addApp() }
+                        .disabled(store.items.count >= 12)
                     Spacer()
-                    Text("\(store.items.count) apps on the wheel")
-                        .foregroundStyle(.secondary)
+                    Text(store.items.count >= 12
+                         ? "12 / 12 — max reached"
+                         : "\(store.items.count) / 12 apps")
+                        .foregroundStyle(store.items.count >= 12 ? .orange : .secondary)
                         .font(.caption)
                 }
 
@@ -74,6 +84,11 @@ struct SettingsView: View {
                     Text("Shortcut")
                     Spacer()
                     KeyboardShortcuts.Recorder("", name: .showWheel)
+                }
+
+                HStack {
+                    Toggle("Show only running apps", isOn: $store.showOnlyRunning)
+                    Spacer()
                 }
 
                 HStack {
@@ -90,6 +105,7 @@ struct SettingsView: View {
     }
 
     private func addApp() {
+        guard store.items.count < 12 else { return }
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.application]
         panel.directoryURL = URL(fileURLWithPath: "/Applications")
@@ -97,6 +113,7 @@ struct SettingsView: View {
         panel.canChooseDirectories = false
         guard panel.runModal() == .OK else { return }
         for url in panel.urls {
+            guard store.items.count < 12 else { break }
             guard !store.items.contains(where: { $0.url == url }) else { continue }
             let name = url.deletingPathExtension().lastPathComponent
             store.items.append(AppItem(name: name, url: url))

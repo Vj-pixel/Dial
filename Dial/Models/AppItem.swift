@@ -14,6 +14,9 @@ final class AppItemStore: ObservableObject {
 
     @Published var items: [AppItem] = [] { didSet { save() } }
     @Published private(set) var runningBundleIDs: Set<String> = []
+    @Published var showOnlyRunning: Bool = UserDefaults.standard.bool(forKey: "dial.showOnlyRunning") {
+        didSet { UserDefaults.standard.set(showOnlyRunning, forKey: "dial.showOnlyRunning") }
+    }
 
     private var observers: [Any] = []
     private static let key = "dial.pinnedApps.v2"

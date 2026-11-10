@@ -6,6 +6,7 @@ final class RadialMenuWindowController {
     private var panel: NSPanel?
     private var keyMonitor: Any?
     private let store: AppItemStore
+    private var hoveredItem: AppItem? = nil
 
     init(store: AppItemStore) {
         self.store = store
@@ -18,7 +19,29 @@ final class RadialMenuWindowController {
     }
 
     func show() {
-        guard panel == nil, !store.items.isEmpty else { return }
+        guard panel == nil else { return }
+
+        let visibleItems: [AppItem]
+        if store.showOnlyRunning {
+            // Show every regular app currently running, not just pinned ones.
+            visibleItems = Array(
+                NSWorkspace.shared.runningApplications
+                    .filter {
+                        $0.activationPolicy == .regular &&
+                        $0.bundleIdentifier != Bundle.main.bundleIdentifier
+                    }
+                    .compactMap { app -> AppItem? in
+                        guard let url = app.bundleURL else { return nil }
+                        let name = app.localizedName
+                            ?? url.deletingPathExtension().lastPathComponent
+                        return AppItem(name: name, url: url)
+                    }
+                    .prefix(12)
+            )
+        } else {
+            visibleItems = store.items
+        }
+        guard !visibleItems.isEmpty else { return }
 
         guard let screen = NSScreen.main else { return }
         let sf = screen.frame
@@ -46,11 +69,12 @@ final class RadialMenuWindowController {
         p.hasShadow       = false
 
         let view = RadialMenuView(
-            items:    store.items,
+            items:    visibleItems,
             center:   center,
             store:    store,
             onSelect: { [weak self] item in self?.select(item) },
-            onDismiss: { [weak self] in self?.hide() }
+            onDismiss: { [weak self] in self?.hide() },
+            onHoverChange: { [weak self] item in self?.hoveredItem = item }
         )
 
         p.contentView = NSHostingView(rootView: view)
@@ -65,7 +89,19 @@ final class RadialMenuWindowController {
         }
     }
 
+    // Called when the hold key is released — selects whatever is hovered.
+    func hideAndSelectHovered() {
+        let item = hoveredItem
+        dismiss()
+        if let item { launch(item) }
+    }
+
     func hide() {
+        dismiss()
+    }
+
+    private func dismiss() {
+        hoveredItem = nil
         if let m = keyMonitor { NSEvent.removeMonitor(m); keyMonitor = nil }
         panel?.orderOut(nil)
         panel = nil
@@ -74,12 +110,16 @@ final class RadialMenuWindowController {
     // MARK: - Activate / Launch
 
     private func select(_ item: AppItem) {
-        hide()
+        dismiss()
+        launch(item)
+    }
+
+    private func launch(_ item: AppItem) {
         let url = item.url
         if let running = NSWorkspace.shared.runningApplications.first(where: {
             $0.bundleURL?.standardizedFileURL == url.standardizedFileURL
         }) {
-            running.activate(options: [])
+            running.activate()  // macOS 14+ — replaces deprecated activate(options:)
         } else {
             let cfg = NSWorkspace.OpenConfiguration()
             cfg.activates = true
