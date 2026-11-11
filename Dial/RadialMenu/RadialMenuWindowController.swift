@@ -1,30 +1,39 @@
 import AppKit
 import SwiftUI
 
+// Shared navigation state — updated by both mouse hover (view) and arrow keys (key monitor).
+final class NavigationState: ObservableObject {
+    @Published var hoveredIndex: Int? = nil
+    var totalItems: Int = 0
+
+    func navigate(_ delta: Int) {
+        guard totalItems > 0 else { return }
+        let start = hoveredIndex ?? (delta > 0 ? -1 : 0)
+        hoveredIndex = ((start + delta) % totalItems + totalItems) % totalItems
+    }
+
+    func reset() { hoveredIndex = nil; totalItems = 0 }
+}
+
 final class RadialMenuWindowController {
 
     private var panel: NSPanel?
     private var keyMonitor: Any?
     private let store: AppItemStore
-    private var hoveredItem: AppItem? = nil
+    private var currentItems: [AppItem] = []
+    private let navState = NavigationState()
 
     init(store: AppItemStore) {
         self.store = store
     }
 
-    // MARK: - Show / Hide / Toggle
-
-    func toggle() {
-        panel == nil ? show() : hide()
-    }
+    // MARK: - Show / Hide
 
     func show() {
         guard panel == nil else { return }
 
-        let visibleItems: [AppItem]
         if store.showOnlyRunning {
-            // Show every regular app currently running, not just pinned ones.
-            visibleItems = Array(
+            currentItems = Array(
                 NSWorkspace.shared.runningApplications
                     .filter {
                         $0.activationPolicy == .regular &&
@@ -39,14 +48,16 @@ final class RadialMenuWindowController {
                     .prefix(12)
             )
         } else {
-            visibleItems = store.items
+            currentItems = store.items
         }
-        guard !visibleItems.isEmpty else { return }
+        guard !currentItems.isEmpty else { return }
+
+        navState.reset()
+        navState.totalItems = currentItems.count
 
         guard let screen = NSScreen.main else { return }
         let sf = screen.frame
 
-        // Cursor → SwiftUI coords (y flipped, origin top-left)
         let mouse = NSEvent.mouseLocation
         let outerR: CGFloat = 148
         let pad:    CGFloat = outerR + 30
@@ -69,12 +80,12 @@ final class RadialMenuWindowController {
         p.hasShadow       = false
 
         let view = RadialMenuView(
-            items:    visibleItems,
+            items:    currentItems,
             center:   center,
             store:    store,
             onSelect: { [weak self] item in self?.select(item) },
             onDismiss: { [weak self] in self?.hide() },
-            onHoverChange: { [weak self] item in self?.hoveredItem = item }
+            navState: navState
         )
 
         p.contentView = NSHostingView(rootView: view)
@@ -82,26 +93,43 @@ final class RadialMenuWindowController {
         p.orderFrontRegardless()
         panel = p
 
-        // Escape key
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            if event.keyCode == 53 { self?.hide(); return nil }
-            return event
+            guard let self else { return event }
+            switch event.keyCode {
+            case 53: // Escape
+                self.hide()
+                return nil
+            case 12: // Q — quit hovered app
+                if let idx = self.navState.hoveredIndex {
+                    let item = self.currentItems[idx]
+                    NSWorkspace.shared.runningApplications
+                        .first { $0.bundleURL?.standardizedFileURL == item.url.standardizedFileURL }?
+                        .terminate()
+                    self.hide()
+                }
+                return nil
+            case 123: // ← left arrow
+                self.navState.navigate(-1)
+                return nil
+            case 124: // → right arrow
+                self.navState.navigate(1)
+                return nil
+            default:
+                return event
+            }
         }
     }
 
-    // Called when the hold key is released — selects whatever is hovered.
     func hideAndSelectHovered() {
-        let item = hoveredItem
+        let item = navState.hoveredIndex.map { currentItems[$0] }
         dismiss()
         if let item { launch(item) }
     }
 
-    func hide() {
-        dismiss()
-    }
+    func hide() { dismiss() }
 
     private func dismiss() {
-        hoveredItem = nil
+        navState.reset()
         if let m = keyMonitor { NSEvent.removeMonitor(m); keyMonitor = nil }
         panel?.orderOut(nil)
         panel = nil
@@ -119,7 +147,7 @@ final class RadialMenuWindowController {
         if let running = NSWorkspace.shared.runningApplications.first(where: {
             $0.bundleURL?.standardizedFileURL == url.standardizedFileURL
         }) {
-            running.activate()  // macOS 14+ — replaces deprecated activate(options:)
+            running.activate()
         } else {
             let cfg = NSWorkspace.OpenConfiguration()
             cfg.activates = true

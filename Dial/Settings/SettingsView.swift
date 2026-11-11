@@ -1,6 +1,5 @@
 import SwiftUI
 import AppKit
-import KeyboardShortcuts
 import ServiceManagement
 
 // MARK: - Window controller
@@ -10,7 +9,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
 
     private init() {
         let win = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 480),
+            contentRect: NSRect(x: 0, y: 0, width: 480, height: 580),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
@@ -81,14 +80,35 @@ struct SettingsView: View {
                 }
 
                 HStack {
-                    Text("Shortcut")
+                    Toggle("Show only running apps", isOn: $store.showOnlyRunning)
                     Spacer()
-                    KeyboardShortcuts.Recorder("", name: .showWheel)
                 }
 
                 HStack {
-                    Toggle("Show only running apps", isOn: $store.showOnlyRunning)
+                    Text("Opacity")
+                    Slider(value: $store.wheelOpacity, in: 0.2...1.0)
+                        .padding(.horizontal, 8)
+                    Text("\(Int(store.wheelOpacity * 100))%")
+                        .frame(width: 36, alignment: .trailing)
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                }
+
+                HStack {
+                    Text("Icon Size")
+                    Slider(value: $store.iconSize, in: 20...56, step: 1)
+                        .padding(.horizontal, 8)
+                    Text("\(Int(store.iconSize))pt")
+                        .frame(width: 36, alignment: .trailing)
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                }
+
+                HStack {
+                    Text("Accent Color")
                     Spacer()
+                    ColorPicker("", selection: $store.accentColor)
+                        .labelsHidden()
                 }
 
                 HStack {

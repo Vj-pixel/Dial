@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 struct AppItem: Identifiable, Codable, Hashable {
     var id: UUID = .init()
@@ -14,8 +15,38 @@ final class AppItemStore: ObservableObject {
 
     @Published var items: [AppItem] = [] { didSet { save() } }
     @Published private(set) var runningBundleIDs: Set<String> = []
+
     @Published var showOnlyRunning: Bool = UserDefaults.standard.bool(forKey: "dial.showOnlyRunning") {
         didSet { UserDefaults.standard.set(showOnlyRunning, forKey: "dial.showOnlyRunning") }
+    }
+    @Published var wheelOpacity: Double = {
+        let v = UserDefaults.standard.double(forKey: "dial.wheelOpacity")
+        return v == 0 ? 0.88 : v
+    }() { didSet { UserDefaults.standard.set(wheelOpacity, forKey: "dial.wheelOpacity") } }
+
+    @Published var iconSize: Double = {
+        let v = UserDefaults.standard.double(forKey: "dial.iconSize")
+        return v == 0 ? 36.0 : v
+    }() { didSet { UserDefaults.standard.set(iconSize, forKey: "dial.iconSize") } }
+
+    @Published var accentColor: Color = AppItemStore.loadAccentColor() {
+        didSet { AppItemStore.saveAccentColor(accentColor) }
+    }
+
+    private static func loadAccentColor() -> Color {
+        guard UserDefaults.standard.object(forKey: "dial.accent.r") != nil else { return .white }
+        return Color(
+            red:   UserDefaults.standard.double(forKey: "dial.accent.r"),
+            green: UserDefaults.standard.double(forKey: "dial.accent.g"),
+            blue:  UserDefaults.standard.double(forKey: "dial.accent.b")
+        )
+    }
+    private static func saveAccentColor(_ color: Color) {
+        if let c = NSColor(color).usingColorSpace(.deviceRGB) {
+            UserDefaults.standard.set(Double(c.redComponent),   forKey: "dial.accent.r")
+            UserDefaults.standard.set(Double(c.greenComponent), forKey: "dial.accent.g")
+            UserDefaults.standard.set(Double(c.blueComponent),  forKey: "dial.accent.b")
+        }
     }
 
     private var observers: [Any] = []
